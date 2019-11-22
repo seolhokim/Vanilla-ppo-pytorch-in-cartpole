@@ -5,19 +5,12 @@ import torch.optim as optim
 from torch.distributions import Categorical
 import gym
 
-learning_rate = 0.0005
-gamma         = 0.98
-eps_clip      = 0.1
-K_epoch       = 3
-T_horizon     = 20
 class Agent(nn.Module):
     def __init__(self, state_dim,action_dim,learning_rate):
         self.state_dim = state_dim
         self.action_dim = action_dim
-        
         super(Agent,self).__init__()
         self.memory = []
-
         self.fc1 = nn.Linear(self.state_dim,256)
         self.policy = nn.Linear(256, self.action_dim)
         self.value = nn.Linear(256, 1)
@@ -49,7 +42,6 @@ class Agent(nn.Module):
             done_mask = 0 if done else 1
             done_list.append([done_mask])
         self.memory = []
-        
         s,a,r,next_s,done_mask,prob = torch.tensor(state_list,dtype=torch.float),\
                                         torch.tensor(action_list),torch.tensor(reward_list),\
                                         torch.tensor(next_state_list,dtype=torch.float),\
@@ -59,11 +51,9 @@ class Agent(nn.Module):
     
     def train(self):
         state,action,reward, next_state,done_mask,action_prob = self.make_batch()
-        
         for i in range(K_epoch):
             td_error = reward + gamma * self.get_value(next_state) * done_mask
-            advantage = reward + gamma * self.get_value(next_state) * done_mask - self.get_value(state)
-            advantage = advantage.detach()
+            advantage = (reward + gamma * self.get_value(next_state) * done_mask - self.get_value(state)).detach()
             
             now_action = self.get_action(state,softmax_dim = 1)
             now_action = now_action.gather(1,action)
@@ -77,26 +67,23 @@ class Agent(nn.Module):
             self.optimizer.zero_grad()
             loss.mean().backward()
             self.optimizer.step()
-            
+learning_rate = 0.0005
+gamma         = 0.98
+eps_clip      = 0.1
+K_epoch       = 3
+T_horizon     = 20         
 epochs = 10000
-max_steps = 100
-global_step = 0
 print_interval = 100
-
 env = gym.make('CartPole-v1')
 model = Agent(4,2,learning_rate)
-
 
 def main():
     ave_reward = 0
     for epoch in range(epochs):
-        
         state = env.reset()
         done = False
-        global_step = 0
         while not done:
             for t in range(T_horizon):
-                global_step += 1
                 action_prob = model.get_action(torch.from_numpy(np.array(state)).float())
                 m = Categorical(action_prob)
                 action = m.sample().item()
@@ -104,14 +91,9 @@ def main():
                 model.put_data((state, action, reward/100.0, next_state, action_prob[action].item(), done))
                 state = next_state
                 ave_reward += reward
-                #if done or (global_step > 300):
-                #    done = True
-                #    break
-
             model.train()
         if epoch%print_interval==0 and epoch!=0:
             print("# of episode :{}, avg score : {:.1f}".format(epoch, ave_reward/print_interval))
             ave_reward = 0
-
 if __name__ == '__main__':
     main()
