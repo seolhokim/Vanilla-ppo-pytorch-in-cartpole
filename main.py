@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 import gym
+import numpy as np
 
 class Agent(nn.Module):
     def __init__(self, state_dim,action_dim,learning_rate):
